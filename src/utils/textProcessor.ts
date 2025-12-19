@@ -1,11 +1,12 @@
 import nlp from 'compromise';
-import { 
-  entityTypes, 
-  medicalPatterns, 
-  relationshipPatterns, 
-  relationshipTypes 
+import {
+  entityTypes,
+  medicalPatterns,
+  relationshipPatterns,
+  relationshipTypes
 } from './medicalEntities';
 import { analyzeGraph } from './graphAnalytics';
+import { extractWithAI } from '../lib/aiTextProcessor';
 
 interface Entity {
   id: string;
@@ -210,16 +211,19 @@ function calculateNodeSimilarity(node1: Entity, node2: Entity): number {
   return similarity;
 }
 
-export function processText(text: string): GraphData {
-  // Find medical entities
+export async function processText(text: string): Promise<GraphData> {
+  try {
+    const aiResult = await extractWithAI(text);
+    if (aiResult) {
+      const connectedGraph = connectIsolatedNodes(aiResult.nodes, aiResult.links);
+      return analyzeGraph(connectedGraph);
+    }
+  } catch (error) {
+    console.warn('AI extraction failed, using local processing:', error);
+  }
+
   const entities = findMedicalEntities(text);
-  
-  // Find relationships between entities
   const relationships = findRelationships(text, entities);
-
-  // Connect isolated nodes
   const connectedGraph = connectIsolatedNodes(entities, relationships);
-
-  // Enhance graph with analytics
   return analyzeGraph(connectedGraph);
 }
