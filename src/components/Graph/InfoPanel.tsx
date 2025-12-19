@@ -26,7 +26,7 @@ interface InfoPanelProps {
   };
 }
 
-export const InfoPanel: React.FC<InfoPanelProps> = ({
+export const InfoPanel = React.memo<InfoPanelProps>(({
   infoPanel,
   isGeneratingSummary,
   aiSummary,
@@ -133,4 +133,4 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({
       )}
     </div>
   );
-}
+});

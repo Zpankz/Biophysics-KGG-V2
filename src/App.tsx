@@ -3,24 +3,7 @@ import { TextInput } from './components/TextInput';
 import Graph from './components/Graph';
 import { processText } from './utils/textProcessor';
 import { SettingsModal } from './components/Settings/SettingsModal';
-
-interface Node {
-  id: string;
-  group: number;
-  context?: string[];
-}
-
-interface Link {
-  source: string;
-  target: string;
-  value: number;
-  type?: string;
-}
-
-interface GraphData {
-  nodes: Node[];
-  links: Link[];
-}
+import type { GraphData } from './components/Graph/types';
 
 function App() {
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });

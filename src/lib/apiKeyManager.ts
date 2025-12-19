@@ -173,14 +173,12 @@ export async function updateApiKeyStatus(
       return { success: false, error: 'User not authenticated' };
     }
 
-    const updateData: any = {
-      validation_status: status,
-      last_validated: new Date().toISOString(),
-    };
-
     const { error } = await supabase
       .from('user_api_keys')
-      .update(updateData)
+      .update({
+        validation_status: status,
+        last_validated: new Date().toISOString(),
+      } as never)
       .eq('id', keyId)
       .eq('user_id', user.id);
 

@@ -4,6 +4,7 @@ export interface Node {
   size?: number;
   pageRank?: number;
   context?: string[];
+  type?: string;
   x?: number;
   y?: number;
   fx?: number | null;

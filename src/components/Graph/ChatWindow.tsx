@@ -1,21 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Draggable from 'react-draggable';
-import OpenAI from 'openai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getApiKey } from '../../utils/apiKeyStorage';
+import { aiService, AIServiceError } from '../../services/aiService';
+import { useGraphContext } from './GraphContext';
 
 interface ChatWindowProps {
   onClose: () => void;
-  graphData: any;
 }
 
-interface Message {
-  role: 'user' | 'assistant';
+type UserMessage = {
+  role: 'user';
   content: string;
-}
+};
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, graphData }) => {
+type AssistantMessage = {
+  role: 'assistant';
+  content: string;
+};
+
+type Message = UserMessage | AssistantMessage;
+
+export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose }) => {
+  const { graphData } = useGraphContext();
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'How can I help you understand the graph?' }
   ]);
@@ -36,56 +43,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, graphData }) =>
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMessage = { role: 'user' as const, content: input };
+    const userMessage: UserMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        throw new Error('API key not found');
-      }
+      const content = await aiService.generateChatResponse(
+        [...messages, userMessage],
+        graphData
+      );
 
-      const openai = new OpenAI({
-        apiKey,
-        dangerouslyAllowBrowser: true
-      });
-
-      const systemPrompt = `You are analyzing a knowledge graph with the following data:
-Nodes: ${JSON.stringify(graphData.nodes)}
-Links: ${JSON.stringify(graphData.links)}
-
-Provide concise, specific answers about the relationships and patterns in this graph.
-Use markdown formatting for better readability:
-- Use bullet points for lists
-- Use **bold** for emphasis
-- Use \`code\` for entity names
-- Use > for important insights
-- Use tables when comparing multiple items`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages,
-          userMessage
-        ],
-        temperature: 0.5,
-        max_tokens: 4000
-      });
-
-      const assistantMessage = {
-        role: 'assistant' as const,
-        content: response.choices[0]?.message?.content || 'Sorry, I could not generate a response.'
+      const assistantMessage: AssistantMessage = {
+        role: 'assistant',
+        content
       };
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
+
+      let errorMessage = 'Sorry, there was an error processing your request.';
+      if (error instanceof AIServiceError) {
+        errorMessage = error.message;
+      }
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, there was an error processing your request.'
+        content: errorMessage
       }]);
     } finally {
       setIsLoading(false);

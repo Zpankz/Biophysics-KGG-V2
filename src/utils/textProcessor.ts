@@ -7,38 +7,22 @@ import {
 } from './medicalEntities';
 import { analyzeGraph } from './graphAnalytics';
 import { extractWithAI } from '../lib/aiTextProcessor';
+import type { Node, Link, GraphData } from '../components/Graph/types';
 
-interface Entity {
-  id: string;
-  group: number;
-  type?: string;
-  context?: string[];
-}
-
-interface Relationship {
-  source: string;
-  target: string;
-  value: number;
-  type?: string;
-  context?: string;
-}
-
-interface GraphData {
-  nodes: Entity[];
-  links: Relationship[];
-}
+type Entity = Node;
+type Relationship = Link;
 
 function findMedicalEntities(text: string): Entity[] {
   const doc = nlp(text);
   const entities: Entity[] = [];
-  const sentences = doc.sentences().out('array');
+  const sentences = doc.sentences().out('array') as string[];
   
   Object.entries(medicalPatterns).forEach(([category, patterns]) => {
     patterns.forEach(pattern => {
       const matches = text.toLowerCase().match(new RegExp(`\\b${pattern}\\b`, 'gi')) || [];
       
-      matches.forEach(match => {
-        const context = sentences.filter(sentence => 
+      matches.forEach((match: string) => {
+        const context = sentences.filter((sentence: string) =>
           sentence.toLowerCase().includes(match.toLowerCase())
         );
         

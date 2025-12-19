@@ -10,7 +10,7 @@ interface GraphControlsProps {
   onToggleChat: () => void;
 }
 
-export const GraphControls: React.FC<GraphControlsProps> = ({
+export const GraphControls = React.memo<GraphControlsProps>(({
   isPathwayMode,
   onTogglePathwayMode,
   isFullscreen,
@@ -81,4 +81,4 @@ export const GraphControls: React.FC<GraphControlsProps> = ({
       </div>
     </div>
   );
-}
+});

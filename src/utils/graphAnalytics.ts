@@ -1,23 +1,5 @@
 import * as d3 from 'd3';
-
-interface Node {
-  id: string;
-  group: number;
-  pageRank?: number;
-  size?: number;
-}
-
-interface Link {
-  source: string;
-  target: string;
-  value: number;
-  type?: string;
-}
-
-interface GraphData {
-  nodes: Node[];
-  links: Link[];
-}
+import type { Node, Link, GraphData } from '../components/Graph/types';
 
 export function analyzeGraph(data: GraphData): GraphData {
   // Calculate node centrality and size

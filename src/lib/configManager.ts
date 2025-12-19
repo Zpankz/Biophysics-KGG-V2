@@ -205,16 +205,14 @@ export async function setActiveConfiguration(configId: string): Promise<{ succes
       return { success: false, error: 'User not authenticated' };
     }
 
-    const deactivateUpdate: any = { is_active: false };
     await supabase
       .from('model_configurations')
-      .update(deactivateUpdate)
+      .update({ is_active: false } as never)
       .eq('user_id', user.id);
 
-    const activateUpdate: any = { is_active: true };
     const { error: updateError } = await supabase
       .from('model_configurations')
-      .update(activateUpdate)
+      .update({ is_active: true } as never)
       .eq('id', configId)
       .eq('user_id', user.id);
 

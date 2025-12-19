@@ -8,7 +8,7 @@ interface TooltipProps {
   y: number;
 }
 
-export const Tooltip: React.FC<TooltipProps> = ({ content, x, y }) => {
+export const Tooltip = React.memo<TooltipProps>(({ content, x, y }) => {
   return (
     <div
       className="absolute bg-black text-white px-4 py-2 rounded shadow-lg pointer-events-none max-w-md"
@@ -36,4 +36,4 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, x, y }) => {
       </ReactMarkdown>
     </div>
   );
-};
+});
