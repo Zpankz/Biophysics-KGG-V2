@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
-import { getApiKey } from '../utils/apiKeyStorage';
+import Anthropic from '@anthropic-ai/sdk';
+import { getActiveConfiguration } from '../lib/configManager';
+import { getApiKey } from '../lib/apiKeyManager';
 import type { GraphData } from '../components/Graph/types';
 
 export interface ChatMessage {
@@ -14,23 +16,35 @@ export class AIServiceError extends Error {
   }
 }
 
+interface ProviderClients {
+  openai: OpenAI | null;
+  anthropic: Anthropic | null;
+}
+
 export class AIService {
-  private client: OpenAI | null = null;
+  private clients: ProviderClients = {
+    openai: null,
+    anthropic: null
+  };
 
-  private getClient(): OpenAI {
-    if (!this.client) {
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        throw new AIServiceError('API key not found. Please add your API key in settings.');
-      }
-
-      this.client = new OpenAI({
+  private async getOpenAIClient(apiKey: string): Promise<OpenAI> {
+    if (!this.clients.openai) {
+      this.clients.openai = new OpenAI({
         apiKey,
         dangerouslyAllowBrowser: true
       });
     }
+    return this.clients.openai;
+  }
 
-    return this.client;
+  private async getAnthropicClient(apiKey: string): Promise<Anthropic> {
+    if (!this.clients.anthropic) {
+      this.clients.anthropic = new Anthropic({
+        apiKey,
+        dangerouslyAllowBrowser: true
+      });
+    }
+    return this.clients.anthropic;
   }
 
   async generateChatResponse(
@@ -38,7 +52,21 @@ export class AIService {
     graphData: GraphData
   ): Promise<string> {
     try {
-      const client = this.getClient();
+      const { data: config, error: configError } = await getActiveConfiguration();
+
+      if (configError || !config) {
+        throw new AIServiceError('Failed to load model configuration. Please check your settings.');
+      }
+
+      const chatConfig = config.chat_config;
+      const provider = chatConfig.provider.toLowerCase();
+      const model = chatConfig.model;
+
+      const { data: keyData, error: keyError } = await getApiKey(provider);
+
+      if (keyError || !keyData) {
+        throw new AIServiceError(`API key not found for ${provider}. Please add your API key in settings.`);
+      }
 
       const systemPrompt = `You are analyzing a knowledge graph with the following data:
 Nodes: ${JSON.stringify(graphData.nodes)}
@@ -52,22 +80,23 @@ Use markdown formatting for better readability:
 - Use > for important insights
 - Use tables when comparing multiple items`;
 
-      const response = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        temperature: 0.5,
-        max_tokens: 4000
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new AIServiceError('No response content received from AI');
+      if (provider === 'openai') {
+        return await this.generateOpenAIResponse(
+          keyData.decrypted_key,
+          model,
+          messages,
+          systemPrompt
+        );
+      } else if (provider === 'anthropic') {
+        return await this.generateAnthropicResponse(
+          keyData.decrypted_key,
+          model,
+          messages,
+          systemPrompt
+        );
+      } else {
+        throw new AIServiceError(`Provider ${provider} is not supported for chat yet.`);
       }
-
-      return content;
     } catch (error) {
       if (error instanceof AIServiceError) {
         throw error;
@@ -81,8 +110,71 @@ Use markdown formatting for better readability:
     }
   }
 
+  private async generateOpenAIResponse(
+    apiKey: string,
+    model: string,
+    messages: ChatMessage[],
+    systemPrompt: string
+  ): Promise<string> {
+    const client = await this.getOpenAIClient(apiKey);
+
+    const formattedMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }))
+    ];
+
+    const response = await client.chat.completions.create({
+      model,
+      messages: formattedMessages,
+      temperature: 0.5,
+      max_tokens: 4000
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new AIServiceError('No response content received from OpenAI');
+    }
+
+    return content;
+  }
+
+  private async generateAnthropicResponse(
+    apiKey: string,
+    model: string,
+    messages: ChatMessage[],
+    systemPrompt: string
+  ): Promise<string> {
+    const client = await this.getAnthropicClient(apiKey);
+
+    const formattedMessages = messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: msg.content
+    }));
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: 4000,
+      temperature: 0.5,
+      system: systemPrompt,
+      messages: formattedMessages
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new AIServiceError('Unexpected response type from Anthropic');
+    }
+
+    return content.text;
+  }
+
   resetClient(): void {
-    this.client = null;
+    this.clients = {
+      openai: null,
+      anthropic: null
+    };
   }
 }
 

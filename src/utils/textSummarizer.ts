@@ -1,25 +1,34 @@
 import OpenAI from 'openai';
-import { getApiKey } from './apiKeyStorage';
+import Anthropic from '@anthropic-ai/sdk';
+import { getActiveConfiguration } from '../lib/configManager';
+import { getApiKey } from '../lib/apiKeyManager';
 
 export async function generateSummary(
   nodes: string[],
   relationships: any[]
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return 'API key not set';
-  }
+  try {
+    const { data: config, error: configError } = await getActiveConfiguration();
 
-  const openai = new OpenAI({
-    apiKey,
-    dangerouslyAllowBrowser: true
-  });
+    if (configError || !config) {
+      return 'Configuration error. Please check your settings.';
+    }
 
-  const prompt = `
+    const chatConfig = config.chat_config;
+    const provider = chatConfig.provider.toLowerCase();
+    const model = chatConfig.model;
+
+    const { data: keyData, error: keyError } = await getApiKey(provider);
+
+    if (keyError || !keyData) {
+      return `API key not found for ${provider}. Please add your API key in settings.`;
+    }
+
+    const prompt = `
 Analyze these biomedical concepts and their relationships:
 
 Concepts: ${nodes.join(', ')}
-Relationships: ${relationships.map(r => 
+Relationships: ${relationships.map(r =>
   `${r.node.id} (${r.relationship.type || 'relates to'})`
 ).join(', ')}
 
@@ -34,25 +43,47 @@ Requirements:
 - Include numerical values if present
 - Order by importance`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are a biophysics expert. Provide concise, numbered insights focusing on mechanisms and physical properties."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 150
-    });
+    const systemPrompt = "You are a biophysics expert. Provide concise, numbered insights focusing on mechanisms and physical properties.";
 
-    const summary = response.choices[0]?.message?.content || 'Unable to generate summary';
-    
+    let summary: string;
+
+    if (provider === 'openai') {
+      const openai = new OpenAI({
+        apiKey: keyData.decrypted_key,
+        dangerouslyAllowBrowser: true
+      });
+
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 150
+      });
+
+      summary = response.choices[0]?.message?.content || 'Unable to generate summary';
+    } else if (provider === 'anthropic') {
+      const anthropic = new Anthropic({
+        apiKey: keyData.decrypted_key,
+        dangerouslyAllowBrowser: true
+      });
+
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 150,
+        temperature: 0.3,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      const content = response.content[0];
+      summary = content.type === 'text' ? content.text : 'Unable to generate summary';
+    } else {
+      return `Provider ${provider} is not supported for summaries yet.`;
+    }
+
     return summary
       .split('\n')
       .filter(line => line.trim())
