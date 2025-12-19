@@ -5,7 +5,6 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-    "noImplicitAny": false,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -15,10 +14,15 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
+    /* Strict Type Checking - TODO: Enable after fixing legacy code */
     "strict": false,
+    "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false
+
+    /* NOTE: New ForceGraph component is strict-mode compliant
+     * Enable strict mode after refactoring legacy Graph, services, and utils
+     */
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
