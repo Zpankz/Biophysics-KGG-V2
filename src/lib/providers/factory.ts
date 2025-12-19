@@ -1,5 +1,7 @@
 import { OpenAIAdapter } from './openai';
 import { AnthropicAdapter } from './anthropic';
+import { GroqAdapter } from './groq';
+import { XAIAdapter } from './xai';
 import type { ProviderAdapter, ProviderConfig } from './types';
 import { getApiKey } from '../apiKeyManager';
 
@@ -29,9 +31,13 @@ export async function createProvider(
     case 'anthropic':
       return new AnthropicAdapter(config, modelName);
 
-    case 'google':
-    case 'xai':
     case 'groq':
+      return new GroqAdapter(config, modelName);
+
+    case 'xai':
+      return new XAIAdapter(config, modelName);
+
+    case 'google':
     case 'cohere':
     case 'voyage':
     case 'elevenlabs':

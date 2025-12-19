@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import type {
   ProviderAdapter,
   ProviderConfig,
@@ -11,90 +10,47 @@ import type {
 
 export class OpenAIAdapter implements ProviderAdapter {
   name = 'openai';
-  private client: OpenAI;
+  private apiKey: string;
   private model: string;
 
   constructor(config: ProviderConfig, model: string) {
-    this.client = new OpenAI({
-      apiKey: config.apiKey,
-      dangerouslyAllowBrowser: true,
-    });
+    this.apiKey = config.apiKey;
     this.model = model;
   }
 
   async completion(request: CompletionRequest): Promise<CompletionResponse> {
-    const messages: any[] = [];
+    const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-completion`;
 
-    if (request.systemPrompt) {
-      messages.push({ role: 'system', content: request.systemPrompt });
-    }
-
-    messages.push({ role: 'user', content: request.prompt });
-
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      temperature: request.temperature ?? 0.7,
-      max_tokens: request.maxTokens ?? 4000,
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        provider: 'openai',
+        model: this.model,
+        request: request,
+        apiKey: this.apiKey,
+      }),
     });
 
-    return {
-      text: response.choices[0]?.message?.content || '',
-      usage: {
-        inputTokens: response.usage?.prompt_tokens || 0,
-        outputTokens: response.usage?.completion_tokens || 0,
-      },
-      model: this.model,
-    };
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`AI completion error: ${error}`);
+    }
+
+    const data = await response.json();
+    return data;
   }
 
   async completionStream(
     request: CompletionRequest,
     onChunk: (chunk: StreamChunk) => void
   ): Promise<void> {
-    const messages: any[] = [];
-
-    if (request.systemPrompt) {
-      messages.push({ role: 'system', content: request.systemPrompt });
-    }
-
-    messages.push({ role: 'user', content: request.prompt });
-
-    const stream = await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      temperature: request.temperature ?? 0.7,
-      max_tokens: request.maxTokens ?? 4000,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const text = chunk.choices[0]?.delta?.content || '';
-      const isComplete = chunk.choices[0]?.finish_reason !== null;
-
-      if (text) {
-        onChunk({ text, isComplete });
-      }
-
-      if (isComplete) {
-        onChunk({ text: '', isComplete: true });
-      }
-    }
+    throw new Error('Streaming not yet implemented via Edge Function');
   }
 
   async embedding(request: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const response = await this.client.embeddings.create({
-      model: this.model,
-      input: request.texts,
-      dimensions: request.dimensions,
-    });
-
-    return {
-      embeddings: response.data.map((item) => item.embedding),
-      usage: {
-        totalTokens: response.usage?.total_tokens || 0,
-      },
-      model: this.model,
-    };
+    throw new Error('Embeddings not yet implemented via Edge Function');
   }
 }

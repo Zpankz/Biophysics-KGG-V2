@@ -6,8 +6,8 @@ import type {
   StreamChunk,
 } from './types';
 
-export class AnthropicAdapter implements ProviderAdapter {
-  name = 'anthropic';
+export class GroqAdapter implements ProviderAdapter {
+  name = 'groq';
   private apiKey: string;
   private model: string;
 
@@ -25,7 +25,7 @@ export class AnthropicAdapter implements ProviderAdapter {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        provider: 'anthropic',
+        provider: 'groq',
         model: this.model,
         request: request,
         apiKey: this.apiKey,
@@ -45,6 +45,6 @@ export class AnthropicAdapter implements ProviderAdapter {
     request: CompletionRequest,
     onChunk: (chunk: StreamChunk) => void
   ): Promise<void> {
-    throw new Error('Streaming not yet implemented via Edge Function');
+    throw new Error('Streaming not yet implemented for Groq');
   }
 }
