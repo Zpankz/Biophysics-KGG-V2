@@ -33,7 +33,8 @@ export async function saveApiKey(
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return { success: false, error: 'User not authenticated' };
+      localStorage.setItem(`apikey_${provider}`, apiKey);
+      return { success: true };
     }
 
     const encryptedKey = await encrypt(apiKey);
@@ -55,6 +56,7 @@ export async function saveApiKey(
       return { success: false, error: error.message };
     }
 
+    localStorage.setItem(`apikey_${provider}`, apiKey);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -66,7 +68,26 @@ export async function getApiKeys(): Promise<{ data: ApiKey[] | null; error?: str
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return { data: null, error: 'User not authenticated' };
+      const localKeys: ApiKey[] = [];
+      const providers = ['openai', 'anthropic', 'cohere', 'google', 'mistral'];
+
+      for (const provider of providers) {
+        const key = localStorage.getItem(`apikey_${provider}`);
+        if (key) {
+          localKeys.push({
+            id: `local_${provider}`,
+            provider_name: provider,
+            key_name: null,
+            is_active: true,
+            last_validated: null,
+            validation_status: 'untested',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      return { data: localKeys };
     }
 
     const { data, error } = await supabase
@@ -93,7 +114,24 @@ export async function getApiKey(
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return { data: null, error: 'User not authenticated' };
+      const localKey = localStorage.getItem(`apikey_${provider}`);
+      if (!localKey) {
+        return { data: null, error: `No API key found for ${provider}. Please add one in Settings.` };
+      }
+
+      return {
+        data: {
+          id: 'local',
+          provider_name: provider,
+          key_name: keyName || null,
+          is_active: true,
+          last_validated: null,
+          validation_status: 'untested',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          decrypted_key: localKey,
+        }
+      };
     }
 
     let query = supabase
@@ -114,7 +152,24 @@ export async function getApiKey(
     }
 
     if (!data) {
-      return { data: null, error: 'API key not found' };
+      const localKey = localStorage.getItem(`apikey_${provider}`);
+      if (!localKey) {
+        return { data: null, error: `No API key found for ${provider}. Please add one in Settings.` };
+      }
+
+      return {
+        data: {
+          id: 'local',
+          provider_name: provider,
+          key_name: keyName || null,
+          is_active: true,
+          last_validated: null,
+          validation_status: 'untested',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          decrypted_key: localKey,
+        }
+      };
     }
 
     const decryptedKey = await decrypt((data as any).encrypted_key);
@@ -143,7 +198,9 @@ export async function deleteApiKey(keyId: string): Promise<{ success: boolean; e
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return { success: false, error: 'User not authenticated' };
+      const provider = keyId.replace('local_', '');
+      localStorage.removeItem(`apikey_${provider}`);
+      return { success: true };
     }
 
     const { error } = await supabase
